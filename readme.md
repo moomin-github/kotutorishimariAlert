@@ -29,3 +29,27 @@ var config = {
   messagingSenderId: "<SENDER_ID>"
 };
 ```
+
+### google script app
+
+googleScriptApp フォルダの.gs ファイルは [google script app](https://script.google.com) でファイルごとにプロジェクトを作成してソースをコピーしてください。
+
+#### kotutoriPlan.gs
+
+12 時間毎に実行するようにトリガーを設定してください。
+
+#### lineAlert.gs
+
+公開＞ウェブアプリケーションとして導入...>更新  
+ウェブアプリケーションの URL を main.js に貼り付けてください
+
+```
+main.jsのlineAlertUrl
+// googleScriptApp API
+var lineAlertUrl = "===URL===";
+```
+
+# 出展
+
+徳島県警察ホームページ (https://www.police.pref.tokushima.jp/index.html)  
+「交通取締計画」(徳島県警察) (https://www.police.pref.tokushima.jp/24kotuanzen/torisimari/kotu-torisimari.html)

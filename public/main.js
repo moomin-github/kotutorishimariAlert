@@ -1,7 +1,9 @@
 // グローバル変数
 // google map
 var map;
-// google map に配置したマーカーを管理する配列
+// ユーザの現在地マーカー
+var userMarker;
+// google map に配置した交通取締マーカーを管理する配列
 var arrMarker;
 
 // =============================================================
@@ -14,9 +16,15 @@ function initMap() {
     //center: { lat: 33.73, lng: 134.53 } //美波町の緯度経度
     center: { lat: 33.9, lng: 134.446 }
   });
-
+  userMaker = new google.maps.Marker();
   arrMarker = new google.maps.MVCArray();
 }
+
+// ロード完了時に実行
+window.onload = function() {
+  // ユーザの現在地取得とマーカー設置
+  getLocation();
+};
 
 // Firebase
 var config = {
@@ -31,50 +39,162 @@ firebase.initializeApp(config);
 
 const firestore = firebase.firestore();
 
+// googleScriptApp API
+var lineAlertUrl = "===URL===";
+
 // =============================================================
-// 取締情報取得(スクレイピング)
+// main
 // =============================================================
-// 徳島県警察署 交通取締計画情報をスクレイピング
-// 取得元ページ：https://www.police.pref.tokushima.jp/24kotuanzen/torisimari/kotu-torisimari.html
-function scrKotuToriPlan() {
-  const request = new XMLHttpRequest();
-  // GoogleAppsScriptで作成したAPIを利用してデータ取得元ページのテーブル部のHTMLを取得
-  const url =
-    "https://script.google.com/macros/s/AKfycbwlTZ7LVkw0i4hLVkojgheMU8YES07XL10QBqKnaVzz_PcgBRgp/exec";
 
-  request.open("GET", url);
-  request.addEventListener("load", event => {
-    // ステータス異常ハンドリング
-    if (event.target.status !== 200) {
-      console.error(`${event.target.status}: ${event.target.statusText}`);
-      return;
-    }
-    let month = event.target.responseText.slice(0, 1);
-    let kotuToriTbody = event.target.responseText.slice(1);
-
-    // 取得した情報tbodyタグに入れて整理
-    const tbody = document.createElement("tbody");
-    tbody.innerHTML = kotuToriTbody;
-
-    let arrKotuTori = setArrkotuTori(tbody);
-
-    updateDb(month, arrKotuTori);
-  });
-  //エラーハンドリング
-  request.addEventListener("error", () => {
-    console.error("Network Error");
-  });
-  request.send();
+function main() {
+  selectDb();
 }
 
+// =============================================================
+// firestore
+// =============================================================
+
+// データ取得
+function selectDb() {
+  // カレンダーから日付を取得
+  let cal = document.getElementById("cal").value;
+  // YYYY-MM-DDからMMとDDをそれぞれ切り出しString型に変換
+  let strCalMonth = String(parseInt(cal.slice(5, 7), 10));
+  let strCalDate = String(parseInt(cal.slice(-2), 10));
+
+  let docRef = firestore.collection("kotutori").doc(strCalMonth);
+  docRef
+    .get()
+    .then(function(doc) {
+      if (doc.exists) {
+        // firebaseにデータが存在する時
+        let arrKotuTori = setArrkotuTori(doc.data().data);
+        pickupInfo(strCalDate, arrKotuTori);
+      } else {
+        // firebaseにデータが存在しない時
+        console.log("No such document!");
+      }
+    })
+    .catch(function(error) {
+      console.log("Error getting document:", error);
+    });
+}
+
+// =============================================================
+// Google Map
+// =============================================================
+
+// 表示されているマーカーを削除
+function deleteMarker() {
+  arrMarker.forEach(function(marker, idx) {
+    marker.setMap(null);
+  });
+}
+
+function setMarker(argAmpm, argLocation, argRoute, argContent) {
+  deleteMarker();
+  // ジオコーダのコンストラクタ
+  let geocoder = new google.maps.Geocoder();
+
+  // geocode(request, callback)
+  //  Parameters:
+  //  ・request:  GeocoderRequest
+  //  ・callback:  function(Array<GeocoderResult>, GeocoderStatus)
+  geocoder.geocode(
+    {
+      address: "徳島県" + argLocation
+    },
+    function(results, status) {
+      if (status == google.maps.GeocoderStatus.OK) {
+        for (var i in results) {
+          if (results[i].geometry) {
+            // 緯度経度を取得
+            var latLng = results[i].geometry.location;
+
+            // マーカーインスタンス
+            var marker = new google.maps.Marker({
+              position: latLng,
+              map: map,
+              icon: "	http://maps.google.co.jp/mapfiles/ms/icons/police.png"
+            });
+
+            //住所を取得
+            var address = results[0].formatted_address.replace(/^日本,/, "");
+
+            new google.maps.InfoWindow({
+              content:
+                address.slice(6) + //「日本, 徳島県」は切捨て
+                "<br>路線：" +
+                argRoute +
+                "<br>取締内容：" +
+                argContent +
+                "<br>時間帯：" +
+                argAmpm
+            }).open(map, marker);
+            arrMarker.push(marker);
+          }
+        }
+        //エラーハンドリング
+      } else if (status == google.maps.GeocoderStatus.ERROR) {
+        alert("サーバとの通信時にエラーが発生");
+      } else if (status == google.maps.GeocoderStatus.INVALID_REQUEST) {
+        alert("リクエストに問題アリ！geocode()に渡すGeocoderRequestを確認");
+      } else if (status == google.maps.GeocoderStatus.OVER_QUERY_LIMIT) {
+        alert("短時間にクエリを送りすぎ");
+      } else if (status == google.maps.GeocoderStatus.REQUEST_DENIED) {
+        alert("ジオコーダの利用が許可されていない");
+      } else if (status == google.maps.GeocoderStatus.UNKNOWN_ERROR) {
+        alert("サーバ側でのトラブル");
+      } else if (status == google.maps.GeocoderStatus.ZERO_RESULTS) {
+        alert("見つかりません");
+      } else {
+        alert("その他のエラー");
+      }
+    }
+  );
+}
+
+function getLocation() {
+  navigator.geolocation.watchPosition(
+    setLocationInfo,
+    function(e) {
+      alert(e.message);
+    },
+    { enableHighAccuracy: true, timeout: 20000, maximumAge: 20000 }
+  );
+}
+
+function setLocationInfo(position) {
+  userMarker = new google.maps.Marker({
+    map: map,
+    position: {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude
+    },
+    icon: "./img/userIcon.png"
+  });
+  if (arrMarker.length > 0) {
+    console.log("start checkDistance");
+    checkDistance();
+  }
+}
+
+// =============================================================
+//
+// =============================================================
+
 //tbodyタグ内のデータを配列[オブジェクト]の形に変換
-function setArrkotuTori(argTbody) {
+function setArrkotuTori(argkotuToriTbody) {
+  // 取得した情報tbodyタグに入れて整理
+  const tbody = document.createElement("tbody");
+  tbody.innerHTML = argkotuToriTbody;
+
   let arr = [];
   let obj = {};
   let date = "";
   let week = "";
 
-  for (let i = 1; i < argTbody.rows.length; i++) {
+  for (let i = 1; i < tbody.rows.length; i++) {
     // テーブル（交通取締情報）の１行分のデータ格納するオブジェクト
     obj = {
       date: "",
@@ -88,8 +208,8 @@ function setArrkotuTori(argTbody) {
       content2: ""
     };
     // テーブルデータの各行列のデータをオブジェクトに格納
-    for (let j = 0; j < argTbody.rows[i].cells.length; j++) {
-      let cell = argTbody.rows[i].cells[j];
+    for (let j = 0; j < tbody.rows[i].cells.length; j++) {
+      let cell = tbody.rows[i].cells[j];
       // 日付、曜日が存在する場合取得
       if (j === 0 && cell.innerHTML !== "") {
         date = cell.innerHTML;
@@ -140,56 +260,6 @@ function setArrkotuTori(argTbody) {
   return arr;
 }
 
-// =============================================================
-// firestore
-// =============================================================
-// データ更新
-function updateDb(argMonth, argArrKotuTori) {
-  // データ追加ドキュメント(ID)は自動
-  firestore
-    .collection("kotutori")
-    .doc(argMonth)
-    .set({
-      data: argArrKotuTori
-    })
-    .then(function() {
-      //正常終了時
-      console.log("Document successfully written!");
-    })
-    .catch(function(error) {
-      // 異常終了時
-      console.error("Error writing document: ", error);
-    });
-}
-
-// データ取得
-function selectDb() {
-  // カレンダーから日付を取得
-  let cal = document.getElementById("cal").value;
-  // YYYY-MM-DDからMMとDDをそれぞれ切り出しString型に変換
-  let strCalMonth = String(parseInt(cal.slice(5, 7), 10));
-  let strCalDate = String(parseInt(cal.slice(-2), 10));
-
-  let docRef = firestore.collection("kotutori").doc(strCalMonth);
-  docRef
-    .get()
-    .then(function(doc) {
-      if (doc.exists) {
-        // firebaseにデータが存在する時
-        pickupInfo(strCalDate, doc.data().data);
-      } else {
-        // firebaseにデータが存在しない時
-        console.log("No such document!");
-      }
-    })
-    .catch(function(error) {
-      console.log("Error getting document:", error);
-    });
-}
-
-// =============================================================
-//
-// =============================================================
 function pickupInfo(argDate, argArrInfo) {
   for (let arrCnt = 0; arrCnt < argArrInfo.length; arrCnt++) {
     if (argArrInfo[arrCnt].date === argDate) {
@@ -212,73 +282,50 @@ function pickupInfo(argDate, argArrInfo) {
     }
   }
 }
-// =============================================================
-// Google Map
-// =============================================================
-function setMarker(argAmpm, argLocation, argRoute, argContent) {
-  // すでに表示されているマーカーを削除
+
+// 取締計画マーカーと ユーザの現在地との距離を求める。
+function checkDistance() {
+  let userPos = userMarker.getPosition();
+  let kotuToriPos;
+  // 距離の単位はm(メートル)
+  let distance = 0;
+  let mostShortDis = 9999999.9;
+  let alertDis = 5000;
   arrMarker.forEach(function(marker, idx) {
-    marker.setMap(null);
-  });
+    kotuToriPos = marker.getPosition();
 
-  // ジオコーダのコンストラクタ
-  var geocoder = new google.maps.Geocoder();
-
-  // geocode(request, callback)
-  //  Parameters:
-  //  ・request:  GeocoderRequest
-  //  ・callback:  function(Array<GeocoderResult>, GeocoderStatus)
-  geocoder.geocode(
-    {
-      address: "徳島県" + argLocation
-    },
-    function(results, status) {
-      if (status == google.maps.GeocoderStatus.OK) {
-        for (var i in results) {
-          if (results[i].geometry) {
-            // 緯度経度を取得
-            var latLng = results[i].geometry.location;
-
-            // マーカーインスタンス
-            var marker = new google.maps.Marker({
-              position: latLng,
-              map: map
-            });
-
-            //住所を取得
-            var address = results[0].formatted_address.replace(/^日本,/, "");
-
-            new google.maps.InfoWindow({
-              content:
-                address.slice(6) + //「日本, 徳島県」は切捨て
-                "<br>路線：" +
-                argRoute +
-                "<br>取締内容：" +
-                argContent +
-                "<br>時間帯：" +
-                argAmpm
-            }).open(map, marker);
-            arrMarker.push(marker);
-          }
-        }
-        //エラーハンドリング
-      } else if (status == google.maps.GeocoderStatus.ERROR) {
-        alert("サーバとの通信時にエラーが発生");
-      } else if (status == google.maps.GeocoderStatus.INVALID_REQUEST) {
-        alert("リクエストに問題アリ！geocode()に渡すGeocoderRequestを確認");
-      } else if (status == google.maps.GeocoderStatus.OVER_QUERY_LIMIT) {
-        alert("短時間にクエリを送りすぎ");
-      } else if (status == google.maps.GeocoderStatus.REQUEST_DENIED) {
-        alert("ジオコーダの利用が許可されていない");
-      } else if (status == google.maps.GeocoderStatus.UNKNOWN_ERROR) {
-        alert("サーバ側でのトラブル");
-      } else if (status == google.maps.GeocoderStatus.ZERO_RESULTS) {
-        alert("見つかりません");
-      } else {
-        alert("その他のエラー");
-      }
+    distance = google.maps.geometry.spherical.computeDistanceBetween(
+      userPos,
+      kotuToriPos
+    );
+    if (mostShortDis > distance) {
+      mostShortDis = distance;
     }
-  );
+  });
+  console.log("dis:" + mostShortDis);
+  // 最も近い交通取締場所がalertDis以内の場合
+  if (mostShortDis < alertDis) {
+    sendLineAlert();
+  }
+}
+
+function sendLineAlert() {
+  const request = new XMLHttpRequest();
+  const url = lineAlertUrl;
+
+  request.open("GET", url);
+  request.addEventListener("load", event => {
+    // ステータス異常ハンドリング
+    if (event.target.status !== 200) {
+      console.error(`${event.target.status}: ${event.target.statusText}`);
+      return;
+    }
+  });
+  //エラーハンドリング
+  request.addEventListener("error", () => {
+    console.error("Network Error");
+  });
+  request.send();
 }
 
 // =============================================================
