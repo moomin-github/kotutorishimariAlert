@@ -6,12 +6,16 @@
     <title>myProject</title>
   </head>
   <body>
-    <!-- テスト用ここから -->
-    <input id="cal" type="date" min="2019-05-01" max="2019-05-31" value="2019-05-01"></input>
+    <input id="cal" type="date" ></input>
     <button onclick="main()">取締マーカー設置</button>
-    <!-- テスト用ここまで -->
 
     <div id="map"></div>
+
+    <div>
+      出典：徳島県警察ホームページ (https://www.police.pref.tokushima.jp/index.html)
+      <br>
+      出典：「交通取締計画」(徳島県警察) (https://www.police.pref.tokushima.jp/24kotuanzen/torisimari/kotu-torisimari.html)
+    </div>
 
     <script src="https://www.gstatic.com/firebasejs/4.12.1/firebase.js"></script>
     <script src="https://www.gstatic.com/firebasejs/4.12.1/firebase-firestore.js"></script>

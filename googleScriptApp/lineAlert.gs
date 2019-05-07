@@ -1,6 +1,6 @@
 function doGet(e) {
   var channel_access_token = 'アクセストークン';
-  var user_id = '--line userId--';
+  var user_id = 'Your user ID';
   var line_url = 'https://api.line.me/v2/bot/message/push';
   
   UrlFetchApp.fetch(line_url,{

@@ -1,4 +1,4 @@
-// このスクリプトは１２時間毎に実行するようにトリガーを設定してください
+// このスクリプトは日次で実行するようにトリガーを設定してください
 
 // 出展
 // 徳島県警察ホームページ (https://www.police.pref.tokushima.jp/index.html)  
@@ -22,7 +22,7 @@ function firestoreConf() {
   var dateArray = {
     "email": "",
     "projectId": "",
-　　　　  "key": "",
+    "key": "",
   }
   return dateArray;
 }

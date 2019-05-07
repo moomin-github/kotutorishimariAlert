@@ -1,4 +1,22 @@
+// =============================================================
+// 定数
+// =============================================================
+// LINEへアラートを送信するAPIのURL
+const lineAlertUrl = "---URL---";
+// firestore config
+const config = {
+  apiKey: "<API_KEY>",
+  authDomain: "<PROJECT_ID>.firebaseapp.com",
+  databaseURL: "https://<DATABASE_NAME>.firebaseio.com",
+  projectId: "<PROJECT_ID>",
+  storageBucket: "<BUCKET>.appspot.com",
+  messagingSenderId: "<SENDER_ID>"
+};
+
+const alertDis = 500000;
+// =============================================================
 // グローバル変数
+// =============================================================
 // google map
 var map;
 // ユーザの現在地マーカー
@@ -26,21 +44,8 @@ window.onload = function() {
   getLocation();
 };
 
-// Firebase
-var config = {
-  apiKey: "<API_KEY>",
-  authDomain: "<PROJECT_ID>.firebaseapp.com",
-  databaseURL: "https://<DATABASE_NAME>.firebaseio.com",
-  projectId: "<PROJECT_ID>",
-  storageBucket: "<BUCKET>.appspot.com",
-  messagingSenderId: "<SENDER_ID>"
-};
+// firebase
 firebase.initializeApp(config);
-
-const firestore = firebase.firestore();
-
-// googleScriptApp API
-var lineAlertUrl = "===URL===";
 
 // =============================================================
 // main
@@ -56,11 +61,13 @@ function main() {
 
 // データ取得
 function selectDb() {
+  const firestore = firebase.firestore();
+
   // カレンダーから日付を取得
-  let cal = document.getElementById("cal").value;
+  const cal = document.getElementById("cal").value;
   // YYYY-MM-DDからMMとDDをそれぞれ切り出しString型に変換
-  let strCalMonth = String(parseInt(cal.slice(5, 7), 10));
-  let strCalDate = String(parseInt(cal.slice(-2), 10));
+  const strCalMonth = String(parseInt(cal.slice(5, 7), 10));
+  const strCalDate = String(parseInt(cal.slice(-2), 10));
 
   let docRef = firestore.collection("kotutori").doc(strCalMonth);
   docRef
@@ -73,6 +80,7 @@ function selectDb() {
       } else {
         // firebaseにデータが存在しない時
         console.log("No such document!");
+        alert("選択された日付の交通取締計画が公開されていません");
       }
     })
     .catch(function(error) {
@@ -105,21 +113,21 @@ function setMarker(argAmpm, argLocation, argRoute, argContent) {
       address: "徳島県" + argLocation
     },
     function(results, status) {
-      if (status == google.maps.GeocoderStatus.OK) {
-        for (var i in results) {
+      if (checkGeocoderStatus(status)) {
+        for (let i in results) {
           if (results[i].geometry) {
             // 緯度経度を取得
-            var latLng = results[i].geometry.location;
+            let latLng = results[i].geometry.location;
 
             // マーカーインスタンス
-            var marker = new google.maps.Marker({
+            let marker = new google.maps.Marker({
               position: latLng,
               map: map,
               icon: "	http://maps.google.co.jp/mapfiles/ms/icons/police.png"
             });
 
             //住所を取得
-            var address = results[0].formatted_address.replace(/^日本,/, "");
+            let address = results[0].formatted_address.replace(/^日本,/, "");
 
             new google.maps.InfoWindow({
               content:
@@ -134,27 +142,13 @@ function setMarker(argAmpm, argLocation, argRoute, argContent) {
             arrMarker.push(marker);
           }
         }
-        //エラーハンドリング
-      } else if (status == google.maps.GeocoderStatus.ERROR) {
-        alert("サーバとの通信時にエラーが発生");
-      } else if (status == google.maps.GeocoderStatus.INVALID_REQUEST) {
-        alert("リクエストに問題アリ！geocode()に渡すGeocoderRequestを確認");
-      } else if (status == google.maps.GeocoderStatus.OVER_QUERY_LIMIT) {
-        alert("短時間にクエリを送りすぎ");
-      } else if (status == google.maps.GeocoderStatus.REQUEST_DENIED) {
-        alert("ジオコーダの利用が許可されていない");
-      } else if (status == google.maps.GeocoderStatus.UNKNOWN_ERROR) {
-        alert("サーバ側でのトラブル");
-      } else if (status == google.maps.GeocoderStatus.ZERO_RESULTS) {
-        alert("見つかりません");
-      } else {
-        alert("その他のエラー");
       }
     }
   );
 }
 
 function getLocation() {
+  console.log("getLocation");
   navigator.geolocation.watchPosition(
     setLocationInfo,
     function(e) {
@@ -219,40 +213,51 @@ function setArrkotuTori(argkotuToriTbody) {
       }
       // オブジェクトにデータを代入
       // route,contentが空の場合「不明」を代入
-      if (j === 0) {
-        obj["date"] = date;
-      } else if (j === 1) {
-        obj["week"] = week;
-      } else if (j === 2) {
-        obj["ampm"] = cell.innerHTML;
-      } else if (j === 3) {
-        obj["location1"] = cell.innerHTML;
-      } else if (j === 4) {
-        if (!checkStrEmpty(cell.innerHTML)) {
-          obj["route1"] = "不明";
-        } else {
-          obj["route1"] = cell.innerHTML;
-        }
-      } else if (j === 5) {
-        if (!checkStrEmpty(cell.innerHTML)) {
-          obj["content1"] = "不明";
-        } else {
-          obj["content1"] = cell.innerHTML;
-        }
-      } else if (j === 6) {
-        obj["location2"] = cell.innerHTML;
-      } else if (j === 7) {
-        if (!checkStrEmpty(cell.innerHTML)) {
-          obj["route2"] = "不明";
-        } else {
-          obj["route2"] = cell.innerHTML;
-        }
-      } else if (j === 8) {
-        if (!checkStrEmpty(cell.innerHTML)) {
-          obj["content2"] = "不明";
-        } else {
-          obj["content2"] = cell.innerHTML;
-        }
+
+      switch (j) {
+        case 0:
+          obj["date"] = date;
+          break;
+        case 1:
+          obj["week"] = week;
+          break;
+        case 2:
+          obj["ampm"] = cell.innerHTML;
+          break;
+        case 3:
+          obj["location1"] = cell.innerHTML;
+          break;
+        case 4:
+          if (!checkStrEmpty(cell.innerHTML)) {
+            obj["route1"] = "不明";
+          } else {
+            obj["route1"] = cell.innerHTML;
+          }
+          break;
+        case 5:
+          if (!checkStrEmpty(cell.innerHTML)) {
+            obj["content1"] = "不明";
+          } else {
+            obj["content1"] = cell.innerHTML;
+          }
+          break;
+        case 6:
+          obj["location2"] = cell.innerHTML;
+          break;
+        case 7:
+          if (!checkStrEmpty(cell.innerHTML)) {
+            obj["route2"] = "不明";
+          } else {
+            obj["route2"] = cell.innerHTML;
+          }
+          break;
+        case 8:
+          if (!checkStrEmpty(cell.innerHTML)) {
+            obj["content2"] = "不明";
+          } else {
+            obj["content2"] = cell.innerHTML;
+          }
+          break;
       }
     }
     arr.push(obj);
@@ -289,8 +294,7 @@ function checkDistance() {
   let kotuToriPos;
   // 距離の単位はm(メートル)
   let distance = 0;
-  let mostShortDis = 9999999.9;
-  let alertDis = 5000;
+  let mostShortDis = -1;
   arrMarker.forEach(function(marker, idx) {
     kotuToriPos = marker.getPosition();
 
@@ -298,34 +302,76 @@ function checkDistance() {
       userPos,
       kotuToriPos
     );
-    if (mostShortDis > distance) {
+    if (mostShortDis > distance || mostShortDis === -1) {
       mostShortDis = distance;
     }
   });
   console.log("dis:" + mostShortDis);
   // 最も近い交通取締場所がalertDis以内の場合
-  if (mostShortDis < alertDis) {
+  if (mostShortDis < alertDis && mostShortDis !== -1) {
+    console.log("sendLineAlert");
     sendLineAlert();
   }
 }
 
 function sendLineAlert() {
-  const request = new XMLHttpRequest();
-  const url = lineAlertUrl;
+  fetch(lineAlertUrl)
+    .then(function(response) {
+      // ステータス異常ハンドリング
+      if (response.status === 200) {
+        return;
+      } else {
+        throw new Error("Network response was not ok.");
+      }
+    })
+    .catch(function(error) {
+      console.log(
+        "There has been a problem with your fetch operation: ",
+        error.message
+      );
+    });
+}
 
-  request.open("GET", url);
-  request.addEventListener("load", event => {
-    // ステータス異常ハンドリング
-    if (event.target.status !== 200) {
-      console.error(`${event.target.status}: ${event.target.statusText}`);
-      return;
-    }
-  });
-  //エラーハンドリング
-  request.addEventListener("error", () => {
-    console.error("Network Error");
-  });
-  request.send();
+function checkGeocoderStatus(status) {
+  let result = false;
+  switch (status) {
+    case (status = google.maps.GeocoderStatus.OK):
+      result = true;
+      break;
+    case (status = google.maps.GeocoderStatus.ERROR):
+      result = false;
+      alert("There was a problem contacting the Google servers.");
+      break;
+    case (status = google.maps.GeocoderStatus.INVALID_REQUEST):
+      result = false;
+      alert("This GeocoderRequest was invalid.");
+      break;
+    case (status = google.maps.GeocoderStatus.OVER_QUERY_LIMIT):
+      result = false;
+      alert(
+        "The webpage has gone over the requests limit in too short a period of time."
+      );
+      break;
+    case (status = google.maps.GeocoderStatus.REQUEST_DENIED):
+      result = false;
+      alert("The webpage is not allowed to use the geocoder.");
+      break;
+    case (status = google.maps.GeocoderStatus.UNKNOWN_ERROR):
+      result = false;
+      alert(
+        "A geocoding request could not be processed due to a server error. The request may succeed if you try again."
+      );
+      break;
+    case (status = google.maps.GeocoderStatus.ZERO_RESULTS):
+      result = false;
+      alert("No result was found for this GeocoderRequest.");
+      break;
+    default:
+      result = false;
+      alert("Unknown Error");
+  }
+
+  return result;
 }
 
 // =============================================================
