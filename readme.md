@@ -36,7 +36,21 @@ googleScriptApp フォルダの.gs ファイルは [google script app](https://s
 
 #### kotutoriPlan.gs
 
-日次で実行するようにトリガーを設定してください。
+ライブラリを追加  
+リソース＞ライブラリ＞ライブラリを追加にプロジェクトキーを挿入して追加ボタンを押してください。
+プロジェクトキーは下記 URL から
+バージョン
+
+- FirestoreApp 22
+- Parser 7
+
+FirestoreApp  
+https://github.com/grahamearley/FirestoreGoogleAppsScript
+
+Parser  
+https://script.google.com/d/1Mc8BthYthXx6CoIz90-JiSzSafVnT6U3t0z_W3hLTAX5ek4w0G_EIrNw/edit?usp=drive_web
+
+上記の設定の後、日次で実行するようにトリガーを設定してください。
 
 #### lineAlert.gs
 
